@@ -63,9 +63,14 @@
         let prevFrame = null;
 
         // Request access to the camera
+        // Request access to the back camera
         async function setupCamera() {
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment' 
+                    } 
+                });
                 video.srcObject = stream;
                 return new Promise(resolve => {
                     video.onloadedmetadata = () => {
@@ -76,6 +81,7 @@
                 alert('Camera access denied.');
             }
         }
+
 
         // Function to calculate depth using Global Block Matching
         function calculateDepth(currentFrame, prevFrame) {
