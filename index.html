@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Depth Estimation</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        #container {
+            position: relative;
+            width: 100%;
+            height: auto;
+            text-align: center;
+        }
+
+        #video, #output, #depthInfo {
+            display: block;
+            margin: auto;
+        }
+
+        #video {
+            width: 320px; /* Shorter width */
+            height: 240px; /* Shorter height */
+        }
+
+        #output {
+            width: 320px; /* Shorter width */
+            height: 240px; /* Shorter height */
+        }
+
+        #depthInfo {
+            font-size: 18px;
+            font-weight: bold;
+            color: blue;
+            margin-top: 10px;
+        }
+
+        @media only screen and (max-width: 600px) {
+            #depthInfo {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="container" style="border: 2px solid red;">
+        <h1> Depth Calculation</h1>
+        <video id="video" autoplay></video>
+        <canvas id="output"></canvas>
+        <div id="depthInfo">Depth: </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('output');
+        const depthInfo = document.getElementById('depthInfo');
+        const ctx = canvas.getContext('2d');
+        let prevFrame = null;
+
+        // Request access to the camera
+        async function setupCamera() {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                return new Promise(resolve => {
+                    video.onloadedmetadata = () => {
+                        resolve(video);
+                    };
+                });
+            } else {
+                alert('Camera access denied.');
+            }
+        }
+
+        // Function to calculate depth using Global Block Matching
+        function calculateDepth(currentFrame, prevFrame) {
+            if (!prevFrame) return null; // Return null if there's no previous frame
+            const { width, height } = currentFrame;
+            const depthMap = new Float32Array(width * height); // Use Float32Array to prevent overflow
+
+            // Global Block Matching Algorithm (Simplest version)
+            for (let i = 0; i < height; i++) {
+                for (let j = 0; j < width; j++) {
+                    const idx = i * width + j;
+                    const currPixel = currentFrame.data.slice(idx * 4, idx * 4 + 3); // Extract RGB values
+                    const prevPixel = prevFrame.data.slice(idx * 4, idx * 4 + 3);
+                    const diff = Math.abs(currPixel[0] - prevPixel[0]); // Compute difference
+                    depthMap[idx] = diff;
+                }
+            }
+            return depthMap;
+        }
+
+        // Function to render depth map and display depth information
+        function renderDepth(depthMap) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const imageData = ctx.createImageData(canvas.width, canvas.height);
+            for (let i = 0; i < depthMap.length; i++) {
+                const pixelValue = depthMap[i];
+                const normalizedValue = Math.min(255, pixelValue); // Ensure pixel values don't exceed 255
+                imageData.data[i * 4] = normalizedValue;
+                imageData.data[i * 4 + 1] = normalizedValue;
+                imageData.data[i * 4 + 2] = normalizedValue;
+                imageData.data[i * 4 + 3] = 255;
+            }
+            ctx.putImageData(imageData, 0, 0);
+
+            // Display depth information (e.g., average depth)
+            const averageDepth = (depthMap.reduce((acc, val) => acc + val, 0) / depthMap.length).toFixed(2);
+            depthInfo.textContent = `Depth: ${averageDepth}`;
+        }
+
+        // Function to process each frame
+        function processFrame() {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const currentFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+            // Calculate depth map and render
+            const depthMap = calculateDepth(currentFrame, prevFrame);
+            if (depthMap) {
+                renderDepth(depthMap);
+            }
+            prevFrame = currentFrame;
+
+            requestAnimationFrame(processFrame);
+        }
+
+        // Start the camera and processing
+        async function start() {
+            const videoElement = await setupCamera();
+            videoElement.play();
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+            requestAnimationFrame(processFrame);
+        }
+
+        // Start the application
+        start();
+    </script>
+</body>
+</html>
